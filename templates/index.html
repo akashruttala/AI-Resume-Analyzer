@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Analyzer Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .jd-item {
+            border-left: 3px solid var(--primary-color);
+            padding-left: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .add-jd-btn {
+            background: none;
+            border: 2px dashed var(--primary-color);
+            color: var(--primary-color);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .add-jd-btn:hover {
+            background: rgba(108, 99, 255, 0.1);
+        }
+        .suggestion-section {
+            margin-top: 1rem;
+        }
+        .suggestion-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        .rank-card {
+            background: rgba(255, 255, 255, 0.5);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+        .rank-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .json-btn {
+            background-color: #2b2b2b;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+    
+    <div class="container">
+        <header class="hero">
+            <h1>AI Resume Analyzer Pro</h1>
+            <p>Semantic matching, multi-role ranking, and structured AI career roadmaps.</p>
+        </header>
+
+        <div class="glass-card" id="upload-section">
+            <form id="analyze-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="resume">Upload Resume (PDF)</label>
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="resume" name="resume" accept="application/pdf" required>
+                        <span class="file-custom">Choose PDF...</span>
+                    </div>
+                </div>
+
+                <div class="form-group" id="jd-container">
+                    <label>Target Roles & Job Descriptions</label>
+                    
+                    <div class="jd-item">
+                        <input type="text" name="jd_role[]" placeholder="E.g. Frontend Developer" style="width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; border-radius: 6px; border: 1px solid #ccc;">
+                        
+                        <div class="tabs">
+                            <button type="button" class="tab-btn active" onclick="switchTab(this, 'jd-text-pane-0')">Paste Text</button>
+                            <button type="button" class="tab-btn" onclick="switchTab(this, 'jd-file-pane-0')">Upload PDF</button>
+                        </div>
+                        
+                        <div class="tab-content active" id="jd-text-pane-0">
+                            <textarea name="jd_text[]" rows="4" placeholder="Paste the job description here..."></textarea>
+                        </div>
+                        <div class="tab-content" id="jd-file-pane-0">
+                            <div class="file-upload-wrapper">
+                                <input type="file" name="jd_file[]" accept="application/pdf" onchange="updateFileName(this)">
+                                <span class="file-custom">Choose JD PDF...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" class="add-jd-btn" onclick="addJD()">+ Add Another Job Description</button>
+
+                <button type="submit" class="submit-btn" id="submit-btn">
+                    <span>Analyze Matches</span>
+                    <div class="loader" id="btn-loader"></div>
+                </button>
+            </form>
+            <div id="error-message" class="error-text"></div>
+        </div>
+
+        <div class="glass-card" id="result-section" style="display: none;">
+            <h2>Analysis Complete</h2>
+            
+            <div id="ranking-container">
+                <!-- Ranks injected here -->
+            </div>
+
+            <div class="actions">
+                <a href="#" id="download-btn" class="download-btn" target="_blank">📄 Download PDF Report</a>
+                <a href="#" id="json-btn" class="download-btn json-btn" target="_blank">💻 Export JSON</a>
+                <button type="button" class="reset-btn" id="reset-btn">Analyze Another</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let jdCount = 1;
+
+        function switchTab(btn, targetId) {
+            const parent = btn.closest('.jd-item');
+            parent.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+            parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            parent.querySelector('#' + targetId).classList.add('active');
+        }
+
+        function updateFileName(input) {
+            let fileName = input.files[0]?.name || "Choose PDF...";
+            let nextSibling = input.nextElementSibling;
+            if(nextSibling && nextSibling.classList.contains('file-custom')) {
+                nextSibling.textContent = fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName;
+            }
+        }
+
+        document.getElementById('resume').addEventListener('change', function(e) {
+            updateFileName(e.target);
+        });
+
+        function addJD() {
+            const container = document.getElementById('jd-container');
+            const html = `
+                <div class="jd-item">
+                    <input type="text" name="jd_role[]" placeholder="E.g. Backend Engineer" style="width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; border-radius: 6px; border: 1px solid #ccc;">
+                    <div class="tabs">
+                        <button type="button" class="tab-btn active" onclick="switchTab(this, 'jd-text-pane-${jdCount}')">Paste Text</button>
+                        <button type="button" class="tab-btn" onclick="switchTab(this, 'jd-file-pane-${jdCount}')">Upload PDF</button>
+                    </div>
+                    <div class="tab-content active" id="jd-text-pane-${jdCount}">
+                        <textarea name="jd_text[]" rows="4" placeholder="Paste the job description here..."></textarea>
+                    </div>
+                    <div class="tab-content" id="jd-file-pane-${jdCount}">
+                        <div class="file-upload-wrapper">
+                            <input type="file" name="jd_file[]" accept="application/pdf" onchange="updateFileName(this)">
+                            <span class="file-custom">Choose JD PDF...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+            jdCount++;
+        }
+
+        const form = document.getElementById('analyze-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const errorMsg = document.getElementById('error-message');
+        const uploadSection = document.getElementById('upload-section');
+        const resultSection = document.getElementById('result-section');
+        const rankingContainer = document.getElementById('ranking-container');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMsg.textContent = "";
+            submitBtn.classList.add('loading');
+            
+            const formData = new FormData(form);
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResults(data);
+                } else {
+                    errorMsg.textContent = data.error || "An error occurred during analysis.";
+                }
+            } catch (err) {
+                errorMsg.textContent = "Fatal error communicating with server. This could be due to a timeout if processing too many JDs.";
+            } finally {
+                submitBtn.classList.remove('loading');
+            }
+        });
+
+        function showResults(data) {
+            uploadSection.style.display = 'none';
+            resultSection.style.display = 'block';
+            rankingContainer.innerHTML = '';
+            
+            data.results.forEach((match, index) => {
+                let roadmapHTML = match.suggestions.skill_roadmap?.map(s => `<li>${s}</li>`).join('') || "<li>N/A</li>";
+                let tipsHTML = match.suggestions.resume_tips?.map(s => `<li>${s}</li>`).join('') || "<li>N/A</li>";
+                let projectsHTML = match.suggestions.project_suggestions?.map(s => `<li>${s}</li>`).join('') || "<li>N/A</li>";
+
+                let matchedSkillsHTML = match.matched_skills.map(s => `<span class="tag green">${s}</span>`).join('');
+                let missingSkillsHTML = match.missing_skills.map(s => `<span class="tag red">${s}</span>`).join('');
+                
+                let badgeClass = match.score >= 80 ? 'green' : (match.score >= 60 ? '' : 'red');
+
+                const rankCard = `
+                    <div class="rank-card">
+                        <div class="rank-header">
+                            <h3>#${index + 1} - ${match.role_name}</h3>
+                            <h2 style="color: var(--primary-color)">${match.score}% <span style="font-size: 0.9rem; font-weight: normal; color: #555">(${match.interpretation})</span></h2>
+                        </div>
+                        
+                        <div class="skills-grid" style="margin-top: 1rem;">
+                            <div class="skills-box matched">
+                                <h4>✅ Matched</h4>
+                                <div class="skills-tags">${matchedSkillsHTML || '<span>None</span>'}</div>
+                            </div>
+                            <div class="skills-box missing">
+                                <h4>❌ Missing</h4>
+                                <div class="skills-tags">${missingSkillsHTML || '<span>None</span>'}</div>
+                            </div>
+                        </div>
+
+                        <div class="suggestions-box" style="margin-top: 1rem;">
+                            <h3>💡 AI Career Assistant</h3>
+                            
+                            <div class="suggestion-section">
+                                <h4>🗺️ Skill Roadmap</h4>
+                                <ul>${roadmapHTML}</ul>
+                            </div>
+                            
+                            <div class="suggestion-section">
+                                <h4>📝 Resume Tips</h4>
+                                <ul>${tipsHTML}</ul>
+                            </div>
+                            
+                            <div class="suggestion-section">
+                                <h4>🚀 Project Ideas</h4>
+                                <ul>${projectsHTML}</ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                rankingContainer.insertAdjacentHTML('beforeend', rankCard);
+            });
+            
+            document.getElementById('download-btn').href = data.report_url;
+            document.getElementById('json-btn').href = data.json_url;
+        }
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            resultSection.style.display = 'none';
+            uploadSection.style.display = 'block';
+            form.reset();
+            document.querySelectorAll('.file-custom').forEach(el => { el.textContent = 'Choose PDF...'; });
+        });
+    </script>
+</body>
+</html>
